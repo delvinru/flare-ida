@@ -50,6 +50,8 @@ as well.
 ### ApplyCalleeType ###
 This plugin allows you to specify or choose a function type for indirect calls as described here: https://www.fireeye.com/blog/threat-research/2015/04/flare_ida_pro_script.html
 
+Now add shortcut `Ctrl+C` for call plugin in disasm or pseudocode view.
+
 
 ### idb2pat ###
 This script allows you to easily generate function patterns from an existing IDB database that can then be turned into FLIRT signatures to help identify similar functions in new files. More information is available at:
