@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Jay Smith
 # jay.smith@mandiant.com
-# 
+#
 ########################################################################
 # Copyright 2014 Mandiant/FireEye
 # Copyright 2019 FireEye
@@ -25,111 +25,161 @@
 #
 ########################################################################
 
+# Also based on code: github.com/oaLabs/hexcopy-ida/
+
 import sys
 
-import idc 
-import idautils  
+import idc
+import idautils
 import idaapi
 
-idaapi.require('flare')
-idaapi.require('flare.apply_callee_type')
-idaapi.require('flare.jayutils')
+idaapi.require("flare")
+idaapi.require("flare.apply_callee_type")
+idaapi.require("flare.jayutils")
 
-PLUGIN_HELP = "This is help"
 PLUGIN_NAME = "ApplyCalleeType"
-PREFERRED_SHORTCUT = "Alt-J"
-PLUGIN_COMMENT = "Apply callee type to indirect call location"
-ACTION_NAME = 'flare:apply_callee_type'
-MENU_PATH = "Edit/Operand type/Manual"
+PLUGIN_HOTKEY = "Ctrl+C"
 
 # get the IDA version number
-ida_major, ida_minor = list(map(int, idaapi.get_kernel_version().split(".")))
-using_ida7api = (ida_major > 6)
+ida_major, ida_minor = map(int, idaapi.get_kernel_version().split("."))
+using_ida7api = ida_major > 6
 
-ex_addmenu_item_ctx = None 
+ex_addmenu_item_ctx = None
 
-def installMenuIda7():
-    class ApplyCalleeHandler(idaapi.action_handler_t):
-        def activate(self, ctx):
-            doApplyCallee()
-            return 1
-
-        def update(self, ctx):
-            return idaapi.AST_ENABLE_FOR_WIDGET if ctx.widget_type == idaapi.BWN_DISASM else idaapi.AST_DISABLE_FOR_WIDGET
-
-    ret = idaapi.register_action(idaapi.action_desc_t(
-            ACTION_NAME,            # Name. Acts as an ID. Must be unique.
-            PLUGIN_NAME,            # Label. That's what users see.
-            ApplyCalleeHandler(),   # Handler. Called when activated, and for updating
-            PREFERRED_SHORTCUT,     # Shortcut (optional)
-            PLUGIN_COMMENT          # Tooltip (optional)
-            ))
-    if not ret:
-        print('Failed to register action. Bailing out')
-        return
-    # Insert the action in the menu
-    if idaapi.attach_action_to_menu(MENU_PATH, ACTION_NAME, idaapi.SETMENU_APP):
-        print("Attached to menu.")
-    else:
-        print("Failed attaching to menu.")
-
-    setattr(sys.modules['idaapi'], '_apply_callee_type_plugin_installFlag', True)
-
-def installMenu():
-    #hack -> stashing a flag under idaapi to prevent multiple menu items from appearing
-    if hasattr(sys.modules['idaapi'], '_apply_callee_type_plugin_installFlag'):
-        #print('Skipping menu install: already present')
-        return
-    if using_ida7api:
-        return installMenuIda7()
-    global ex_addmenu_item_ctx
-    ex_addmenu_item_ctx = idaapi.add_menu_item(
-        MENU_PATH, 
-        PLUGIN_NAME, 
-        PREFERRED_SHORTCUT, 
-        0, 
-        doApplyCallee, 
-        tuple("hello world")
-    )
-    if ex_addmenu_item_ctx  is None:
-        print('Failed to init apply_callee_type_plugin')
-
-    setattr(sys.modules['idaapi'], '_apply_callee_type_plugin_installFlag', True)
-
-
-class apply_callee_type_plugin_t(idaapi.plugin_t):
-    flags = 0
-    comment = PLUGIN_COMMENT
-    help = PLUGIN_HELP
-    wanted_name = PLUGIN_NAME
-    wanted_hotkey = ""
-
-
-    def init(self):
-        idaapi.msg('apply_callee_type_plugin:init\n')
-
-        installMenu()
-        return idaapi.PLUGIN_OK
-
-    def run(self, arg):
-        #idaapi.msg('apply_callee_type_plugin:run\n')
-        flare.apply_callee_type.main()
-
-    def term(self):
-        #idaapi.msg('apply_callee_type_plugin:term\n')
-        #if self.ex_addmenu_item_ctx is not None:
-        #    idaapi.del_menu_item(ex_addmenu_item_ctx)
-        pass
 
 def PLUGIN_ENTRY():
     try:
         return apply_callee_type_plugin_t()
     except Exception as err:
         import traceback
-        msg("Error: %s\n%s" % (str(err), traceback.format_exc()))
+
+        idaapi.msg("Error: %s\n%s" % (str(err), traceback.format_exc()))
         raise
 
-def doApplyCallee(*args):
-    #idaapi.msg('doApplyCallee:Calling now\n')
-    flare.apply_callee_type.main()
 
+# =======================================
+# some handler
+# =======================================
+class ApplyCalleeHandler(idaapi.action_handler_t):
+    def activate(self, ctx):
+        self._apply_callee()
+        return True
+
+    def update(self, ctx):
+        return (
+            idaapi.AST_ENABLE_FOR_WIDGET
+            if ctx.widget_type == idaapi.BWN_DISASM
+            or ctx.widget_type == idaapi.BWN_PSEUDOCODE
+            else idaapi.AST_DISABLE_FOR_WIDGET
+        )
+
+    def _apply_callee(self, *args):
+        flare.apply_callee_type.main()
+
+
+# =======================================
+# Entry point
+# =======================================
+class apply_callee_type_plugin_t(idaapi.plugin_t):
+    """
+    Apply Callee type plugin
+    """
+
+    flags = idaapi.PLUGIN_PROC | idaapi.PLUGIN_HIDE
+    comment = "Aplly callee type to indirect call location"
+    help = "This is help ¯\_(ツ)_/¯"
+    wanted_name = PLUGIN_NAME
+    wanted_hotkey = PLUGIN_HOTKEY
+
+    def init(self):
+        """
+        Default handler for IDA
+        """
+        # Setup menu
+        self._init_menu()
+
+        # Setup hooks
+        self._init_hooks()
+
+        idaapi.msg("[%s] init\n" % self.wanted_name)
+        return idaapi.PLUGIN_KEEP
+
+    def run(self, args):
+        flare.apply_callee_type.main()
+
+    def term(self):
+        self._hooks.unhook()
+        self._del_action_callee()
+
+    def _init_hooks(self):
+        self._hooks = Hooks()
+        self._hooks.ready_to_run = self._init_hexrays_hooks
+        self._hooks.hook()
+
+    def _init_hexrays_hooks(self):
+        if idaapi.init_hexrays_plugin():
+            idaapi.install_hexrays_callback(self._hooks.hxe_callback)
+
+    # IDA Actions
+    ACTION_NAME = "flare:apply_callee_type"
+
+    def _init_menu(self):
+        if hasattr(sys.modules["idaapi"], "_apply_callee_type_plugin_installFlag"):
+            return
+
+        action_desc = idaapi.action_desc_t(
+            self.ACTION_NAME,  # Name. Acts as an ID. Must be unique.
+            self.wanted_name,  # Label. That's what users see.
+            ApplyCalleeHandler(),  # Handler. Called when activated, and for updating
+            PLUGIN_HOTKEY,  # Shortcut (optional)
+            self.comment,  # Tooltip (optional)
+        )
+
+        # Register action in IDA
+        assert idaapi.register_action(action_desc), "Action registration failed"
+
+        setattr(sys.modules["idaapi"], "_apply_callee_type_plugin_installFlag", True)
+
+    def _del_action_callee(self):
+        idaapi.unregister_action(self.ACTION_NAME)
+
+
+# =======================================
+# Hooks
+# =======================================
+class Hooks(idaapi.UI_Hooks):
+    def finish_populating_widget_popup(self, widget, popup):
+        """
+        A right click menu is about to be shown. (IDA 7)
+        """
+        inject_callee_actions(widget, popup, idaapi.get_widget_type(widget))
+        return 0
+
+    def hxe_callback(self, event, *args):
+        if event == idaapi.hxe_populating_popup:
+            form, popup, vu = args
+
+            idaapi.attach_action_to_popup(
+                form,
+                popup,
+                apply_callee_type_plugin_t.ACTION_NAME,
+                "Apply callee type plugin",
+                idaapi.SETMENU_APP,
+            )
+        return 0
+
+
+# =======================================
+# Prefix
+# =======================================
+def inject_callee_actions(form, popup, form_type):
+    # for work only in disasm or pseucode view
+    if form_type == idaapi.BWN_DISASMS or form_type == idaapi.BWN_PSEUDOCODE:
+        idaapi.attach_action_to_popup(
+            form,
+            popup,
+            apply_callee_type_plugin_t.ACTION_NAME,
+            "Apply callee type plugin",
+            idaapi.SETMENU_APP,
+        )
+    return 0
