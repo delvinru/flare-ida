@@ -38,7 +38,7 @@ idaapi.require("flare.apply_callee_type")
 idaapi.require("flare.jayutils")
 
 PLUGIN_NAME = "ApplyCalleeType"
-PLUGIN_HOTKEY = "Ctrl+C"
+PLUGIN_HOTKEY = "Shift+C"
 
 # get the IDA version number
 ida_major, ida_minor = map(int, idaapi.get_kernel_version().split("."))
