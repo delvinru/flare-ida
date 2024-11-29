@@ -87,7 +87,7 @@ class apply_callee_type_plugin_t(idaapi.plugin_t):
 
     flags = idaapi.PLUGIN_PROC | idaapi.PLUGIN_HIDE
     comment = "Aplly callee type to indirect call location"
-    help = "This is help ¯\_(ツ)_/¯"
+    help = r"This is help ¯\_(ツ)_/¯"
     wanted_name = PLUGIN_NAME
     wanted_hotkey = PLUGIN_HOTKEY
 
