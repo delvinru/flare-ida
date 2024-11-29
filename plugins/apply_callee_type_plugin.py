@@ -174,7 +174,7 @@ class Hooks(idaapi.UI_Hooks):
 # =======================================
 def inject_callee_actions(form, popup, form_type):
     # for work only in disasm or pseucode view
-    if form_type == idaapi.BWN_DISASMS or form_type == idaapi.BWN_PSEUDOCODE:
+    if form_type == idaapi.BWN_DISASM or form_type == idaapi.BWN_PSEUDOCODE:
         idaapi.attach_action_to_popup(
             form,
             popup,
